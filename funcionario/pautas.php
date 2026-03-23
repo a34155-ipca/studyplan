@@ -35,6 +35,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && $_POST['acao']==='notas') {
     $sucesso='Notas guardadas!';
 }
 
+// Apagar pauta
+if (isset($_GET["apagar"])) {
+    $db->prepare("DELETE FROM pautas WHERE id=?")->execute([(int)$_GET["apagar"]]);
+    $sucesso = "Pauta removida com sucesso.";
+}
+
 $ucs    = $db->query("SELECT * FROM ucs ORDER BY nome")->fetchAll();
 $cursos = $db->query("SELECT * FROM cursos WHERE ativo=1 ORDER BY nome")->fetchAll();
 $pautas = $db->query("SELECT p.*,u.nome as uc_nome,c.nome as curso_nome,f.nome as criador FROM pautas p JOIN ucs u ON p.uc_id=u.id JOIN cursos c ON p.curso_id=c.id LEFT JOIN utilizadores f ON p.criado_por=f.id ORDER BY p.criado_em DESC")->fetchAll();
@@ -116,7 +122,7 @@ if (isset($_GET['pauta'])) {
                     <td><?= $p['ano_letivo'] ?></td>
                     <td><span class="badge estado-<?= $p['epoca'] ?>"><?= $p['epoca'] ?></span></td>
                     <td style="color:var(--muted)"><?= htmlspecialchars($p['criador']??'—') ?></td>
-                    <td><a href="pautas.php?pauta=<?= $p['id'] ?>" class="btn btn-secondary btn-xs">Lançar notas</a></td>
+                    <td style="display:flex;gap:6px;"><a href="pautas.php?pauta=<?= $p['id'] ?>" class="btn btn-secondary btn-xs">Lançar notas</a><a href="pautas.php?apagar=<?= $p['id'] ?>" class="btn btn-danger btn-xs" onclick="return confirm('Apagar esta pauta e todas as notas?')">Apagar</a></td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -135,13 +141,16 @@ if (isset($_GET['pauta'])) {
         <form method="POST">
             <input type="hidden" name="acao" value="criar">
             <div class="form-group"><label>Curso</label>
-                <select name="curso_id" required><option value="">Selecione...</option>
-                <?php foreach ($cursos as $c): ?><option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nome']) ?></option><?php endforeach; ?>
+                <select name="curso_id" id="sel-curso" required onchange="filtrarUCs(this.value)">
+                    <option value="">Selecione...</option>
+                    <?php foreach ($cursos as $c): ?>
+                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nome']) ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div class="form-group"><label>Unidade Curricular</label>
-                <select name="uc_id" required><option value="">Selecione...</option>
-                <?php foreach ($ucs as $u): ?><option value="<?= $u['id'] ?>"><?= htmlspecialchars($u['nome']) ?></option><?php endforeach; ?>
+                <select name="uc_id" id="sel-uc" required>
+                    <option value="">Selecione primeiro um curso...</option>
                 </select>
             </div>
             <div class="form-row">
@@ -158,5 +167,34 @@ if (isset($_GET['pauta'])) {
         </form>
     </div>
 </div>
+
+<script>
+// Mapa de UCs por curso gerado pelo PHP
+const ucsPorCurso = <?php
+    $mapa = [];
+    $stmt = $db->query("SELECT pe.curso_id, u.id, u.nome FROM plano_estudos pe JOIN ucs u ON pe.uc_id = u.id ORDER BY u.nome");
+    foreach ($stmt->fetchAll() as $row) {
+        $mapa[$row['curso_id']][] = ['id' => $row['id'], 'nome' => $row['nome']];
+    }
+    echo json_encode($mapa);
+?>;
+
+function filtrarUCs(cursoId) {
+    const sel = document.getElementById('sel-uc');
+    sel.innerHTML = '<option value="">Selecione uma UC...</option>';
+
+    if (!cursoId || !ucsPorCurso[cursoId]) {
+        sel.innerHTML = '<option value="">Selecione primeiro um curso...</option>';
+        return;
+    }
+
+    ucsPorCurso[cursoId].forEach(uc => {
+        const opt = document.createElement('option');
+        opt.value = uc.id;
+        opt.textContent = uc.nome;
+        sel.appendChild(opt);
+    });
+}
+</script>
 </body>
 </html>
