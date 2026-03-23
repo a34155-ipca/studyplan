@@ -14,7 +14,7 @@ function getDB() {
         $db   = 'studyplan';
         $user = 'root';
         $pass = '';
-        $port = 8485; // Mude para 3306 se necessário
+        $port = 8485; 
         try {
             $pdo = new PDO(
                 "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4",
